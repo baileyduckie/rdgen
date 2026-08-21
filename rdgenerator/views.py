@@ -24,6 +24,15 @@ def project_storage_path(*parts):
     return str((base_dir.joinpath(*parts)).resolve())
 
 
+def build_public_base_url(request=None):
+    configured_url = str(getattr(_settings, 'GENURL', '') or '').strip().rstrip('/')
+    if configured_url:
+        return configured_url
+    if request is None:
+        return str(getattr(_settings, 'PROTOCOL', 'https') or 'https')
+    return f"{_settings.PROTOCOL}://{request.get_host()}".rstrip('/')
+
+
 def generate_custom_client(params, full_url):
     """
     Core generation logic shared by web form and JSON API.
@@ -387,7 +396,7 @@ def generator_view(request):
         form = GenerateForm(request.POST, request.FILES)
         if form.is_valid():
             params = form.cleaned_data
-            full_url = f"{_settings.PROTOCOL}://{request.get_host()}" if _settings.GENURL else f"{_settings.PROTOCOL}://{request.get_host()}"
+            full_url = build_public_base_url(request)
             result = generate_custom_client(params, full_url)
             if result['success']:
                 return render(request, 'waiting.html', {

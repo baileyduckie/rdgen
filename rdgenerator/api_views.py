@@ -118,7 +118,8 @@ def api_generate(request):
         }, status=400)
 
     # Build full_url the same way as generator_view
-    full_url = f"{_settings.PROTOCOL}://{request.get_host()}" if _settings.GENURL else f"{_settings.PROTOCOL}://{request.get_host()}"
+    from .views import build_public_base_url
+    full_url = build_public_base_url(request)
 
     result = generate_custom_client(cleaned, full_url)
 

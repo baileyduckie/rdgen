@@ -48,6 +48,31 @@ jobs:
         with:
           name: encrypted-secrets-zip
 
+        - name: Debug: list files and test zip password
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, sys, json
+          try:
+            import pyzipper
+          except Exception:
+            import subprocess
+            subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pyzipper'])
+            import pyzipper
+
+          print('CWD:', os.getcwd())
+          print('LISTING:', os.listdir('.'))
+          try:
+            with pyzipper.AESZipFile('secrets.zip') as zf:
+              zf.setpassword('${{ secrets.ZIP_PASSWORD }}'.encode())
+              with zf.open('secrets.json') as f:
+                json.load(f)
+            print('DEBUG_ZIP_OK')
+          except Exception as e:
+            print('DEBUG_ZIP_ERR', type(e).__name__, str(e))
+            raise
+          PY
+
       - name: Load Secrets
         uses: ./.github/actions/decrypt-secrets
         with:

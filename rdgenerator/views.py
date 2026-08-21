@@ -11,6 +11,7 @@ import base64
 import json
 import uuid
 import pyzipper
+import binascii
 from django.conf import settings as _settings
 from django.db.models import Q
 from .forms import GenerateForm
@@ -574,14 +575,23 @@ def save_png(file, uuid, domain, name):
 
     if isinstance(file, str):  # Check if it's a base64 string
         try:
-            if not ';base64,' in file:
+            # Accept both data URI (`data:...;base64,AAAA`) and raw base64 text
+            if ';base64,' in file:
+                _, encoded = file.split(';base64,', 1)
+            else:
+                # Strip whitespace/newlines which sometimes appear when copying
+                encoded = ''.join(file.split())
+
+            if not encoded:
                 print("Invalid base64 data")
                 return None
-            header, encoded = file.split(';base64,', 1)
-            if not encoded.strip():
-                print("Invalid base64 data")
+
+            try:
+                decoded_img = base64.b64decode(encoded, validate=True)
+            except (binascii.Error, ValueError) as e:
+                print(f"Invalid base64 data: {e}")
                 return None
-            decoded_img = base64.b64decode(encoded, validate=True)
+
             file = ContentFile(decoded_img, name=name) # Create a file-like object
         except (ValueError, TypeError):
             print("Invalid base64 data")

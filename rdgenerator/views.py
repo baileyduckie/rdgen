@@ -19,6 +19,11 @@ from PIL import Image
 from urllib.parse import quote
 
 
+def project_storage_path(*parts):
+    base_dir = Path(__file__).resolve().parent.parent
+    return str((base_dir.joinpath(*parts)).resolve())
+
+
 def generate_custom_client(params, full_url):
     """
     Core generation logic shared by web form and JSON API.
@@ -441,7 +446,9 @@ def check_for_file(request):
 def download(request):
     filename = request.GET['filename']
     uuid = request.GET['uuid']
-    file_path = os.path.join('exe', uuid, filename)
+    file_path = project_storage_path('exe', uuid, filename)
+    if not os.path.exists(file_path):
+        raise Http404(f"File not found: {filename}")
     with open(file_path, 'rb') as file:
         content = file.read()
     response = HttpResponse(content, headers={
@@ -453,8 +460,9 @@ def download(request):
 def get_png(request):
     filename = request.GET['filename']
     uuid = request.GET['uuid']
-    #filename = filename+".exe"
-    file_path = os.path.join('png',uuid,filename)
+    file_path = project_storage_path('png', uuid, filename)
+    if not os.path.exists(file_path):
+        raise Http404(f"PNG not found: {filename}")
     with open(file_path, 'rb') as file:
         response = HttpResponse(file, headers={
             'Content-Type': 'application/vnd.microsoft.portable-executable',
@@ -548,36 +556,41 @@ def startgh(request):
     return HttpResponse(status=204)
 
 def save_png(file, uuid, domain, name):
-    file_save_path = "png/%s/%s" % (uuid, name)
-    Path("png/%s" % uuid).mkdir(parents=True, exist_ok=True)
+    if not file or file == 'data:image/png;base64,' or file == 'data:application/octet-stream;base64,':
+        print("Invalid base64 data")
+        return None
+
+    file_save_path = project_storage_path('png', uuid, name)
+    Path(project_storage_path('png', uuid)).mkdir(parents=True, exist_ok=True)
 
     if isinstance(file, str):  # Check if it's a base64 string
         try:
-            header, encoded = file.split(';base64,')
-            decoded_img = base64.b64decode(encoded)
+            if not ';base64,' in file:
+                print("Invalid base64 data")
+                return None
+            header, encoded = file.split(';base64,', 1)
+            if not encoded.strip():
+                print("Invalid base64 data")
+                return None
+            decoded_img = base64.b64decode(encoded, validate=True)
             file = ContentFile(decoded_img, name=name) # Create a file-like object
-        except ValueError:
+        except (ValueError, TypeError):
             print("Invalid base64 data")
-            return None  # Or handle the error as you see fit
+            return None
         except Exception as e:  # Catch general exceptions during decoding
             print(f"Error decoding base64: {e}")
             return None
-        
+
     with open(file_save_path, "wb+") as f:
         for chunk in file.chunks():
             f.write(chunk)
-    # imageJson = {}
-    # imageJson['url'] = domain
-    # imageJson['uuid'] = uuid
-    # imageJson['file'] = name
-    #return "%s/%s" % (domain, file_save_path)
     return domain, uuid, name
 
 def save_custom_client(request):
     file = request.FILES['file']
     myuuid = request.POST.get('uuid')
-    file_save_path = "exe/%s/%s" % (myuuid, file.name)
-    Path("exe/%s" % myuuid).mkdir(parents=True, exist_ok=True)
+    file_save_path = project_storage_path('exe', myuuid, file.name)
+    Path(project_storage_path('exe', myuuid)).mkdir(parents=True, exist_ok=True)
     with open(file_save_path, "wb+") as f:
         for chunk in file.chunks():
             f.write(chunk)
